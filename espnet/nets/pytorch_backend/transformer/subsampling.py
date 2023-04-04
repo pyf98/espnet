@@ -40,6 +40,8 @@ def check_short_utt(ins, size):
         return True, 11
     if isinstance(ins, Conv2dSubsampling8) and size < 15:
         return True, 15
+    if isinstance(ins, Conv1dSubsampling2) and size < 7:
+        return True, 7
     return False, -1
 
 
@@ -316,3 +318,61 @@ class Conv2dSubsampling8(torch.nn.Module):
         if x_mask is None:
             return x, None
         return x, x_mask[:, :, :-2:2][:, :, :-2:2][:, :, :-2:2]
+
+
+class Conv1dSubsampling2(torch.nn.Module):
+    """Convolutional 1D subsampling (to 1/2 length).
+
+    Same as Whisper.
+
+    Args:
+        idim (int): Input dimension.
+        odim (int): Output dimension.
+        dropout_rate (float): Dropout rate.
+        pos_enc (torch.nn.Module): Custom position encoding layer.
+
+    """
+
+    def __init__(self, idim, odim, dropout_rate, pos_enc=None):
+        """Construct an Conv1dSubsampling2 object."""
+        super().__init__()
+        self.conv = torch.nn.Sequential(
+            torch.nn.Conv1d(idim, odim, 3, 1, 1),
+            torch.nn.GELU(),
+            torch.nn.Conv1d(odim, odim, 3, 2, 1),
+            torch.nn.GELU(),
+        )
+        self.out = torch.nn.Sequential(
+            pos_enc if pos_enc is not None else PositionalEncoding(odim, dropout_rate),
+        )
+
+    def forward(self, x: torch.Tensor, x_mask: torch.Tensor):
+        """Subsample x.
+
+        Args:
+            x (torch.Tensor): Input tensor (#batch, time, idim).
+            x_mask (torch.Tensor): Input mask (#batch, 1, time).
+
+        Returns:
+            torch.Tensor: Subsampled tensor (#batch, time', odim),
+                where time' = time // 2.
+            torch.Tensor: Subsampled mask (#batch, 1, time'),
+                where time' = time // 2.
+
+        """
+        x = self.conv(x.transpose(1, 2))
+        x = self.out(x.transpose(1, 2))
+        if x_mask is None:
+            return x, None
+        return x, x_mask[:, :, ::2]
+
+    def __getitem__(self, key):
+        """Get item.
+
+        When reset_parameters() is called, if use_scaled_pos_enc is used,
+            return the positioning encoding.
+
+        """
+        if key != -1:
+            raise NotImplementedError("Support only `-1` (for `reset_parameters`).")
+        return self.out[key]

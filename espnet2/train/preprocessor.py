@@ -4,7 +4,7 @@ import random
 import re
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Collection, Dict, Iterable, List, Union
+from typing import Collection, Dict, Iterable, List, Union, Tuple
 
 import numpy as np
 import scipy.signal
@@ -349,6 +349,162 @@ class CommonPreprocessor(AbsPreprocessor):
 
         data = self._speech_process(data)
         data = self._text_process(data)
+        return data
+
+
+class WhisperPreprocessor(CommonPreprocessor):
+    def __init__(
+        self,
+        train: bool,
+        token_type: str = None,
+        token_list: Union[Path, str, Iterable[str]] = None,
+        bpemodel: Union[Path, str, Iterable[str]] = None,
+        text_cleaner: Collection[str] = None,
+        g2p_type: str = None,
+        unk_symbol: str = "<unk>",
+        space_symbol: str = "<space>",
+        non_linguistic_symbols: Union[Path, str, Iterable[str]] = None,
+        delimiter: str = None,
+        rir_scp: str = None,
+        rir_apply_prob: float = 1.0,
+        noise_scp: str = None,
+        noise_apply_prob: float = 1.0,
+        noise_db_range: str = "3_10",
+        short_noise_thres: float = 0.5,
+        aux_task_names: Collection[str] = None,
+        speech_volume_normalize: float = None,
+        speech_name: str = "speech",
+        text_name: str = "text",
+        fs: int = 0,
+        max_sec: float = 30,
+        resolution_sec: float = 0.02,
+        max_init_silence_sec: float = 1.0,
+        prev_apply_prob: float = 0.5,
+        timestamp_apply_prob: float = 0.5,
+        notimestamp_symbol: str = "<notimestamps>",
+        first_timestamp_symbol: str = "<0.00>",
+        last_timestamp_symbol: str = "<30.00>",
+        sos_symbol: str = "<startoftranscript>",
+    ):
+        super().__init__(
+            train=train,
+            token_type=token_type,
+            token_list=token_list,
+            bpemodel=bpemodel,
+            text_cleaner=text_cleaner,
+            g2p_type=g2p_type,
+            unk_symbol=unk_symbol,
+            space_symbol=space_symbol,
+            non_linguistic_symbols=non_linguistic_symbols,
+            delimiter=delimiter,
+            rir_scp=rir_scp,
+            rir_apply_prob=rir_apply_prob,
+            noise_scp=noise_scp,
+            noise_apply_prob=noise_apply_prob,
+            noise_db_range=noise_db_range,
+            short_noise_thres=short_noise_thres,
+            aux_task_names=aux_task_names,
+            speech_volume_normalize=speech_volume_normalize,
+            speech_name=speech_name,
+            text_name=text_name,
+            fs=fs,
+        )
+        self.max_samples = int(max_sec * fs)
+        self.resolution_samples = int(resolution_sec * fs)
+        self.max_init_silence_samples = int(max_init_silence_sec * fs)
+        self.prev_apply_prob = prev_apply_prob
+        self.timestamp_apply_prob = timestamp_apply_prob
+
+        # get the id of some special tokens
+        self.notimestamp_id = self.token_id_converter.token2id[notimestamp_symbol]
+        self.first_timestamp_id = self.token_id_converter.token2id[first_timestamp_symbol]
+        self.last_timestamp_id = self.token_id_converter.token2id[last_timestamp_symbol]
+        self.sos_id = self.token_id_converter.token2id[sos_symbol]
+    
+    def _pad_or_trim_speech(
+        self, data: Dict[str, Union[str, np.ndarray]]
+    ) -> Tuple[Dict[str, Union[str, np.ndarray]], int]:
+        assert check_argument_types()
+
+        pad_left_samples = 0    # set default value
+        if self.speech_name in data:
+            if self.train:
+                speech = data[self.speech_name]
+
+                # speech: (Nmic, Time)
+                if speech.ndim == 1:
+                    speech = speech[None, :]
+                else:
+                    speech = speech.T
+
+                # add silence to the left
+                if speech.shape[-1] < self.max_samples:
+                    pad_left_samples = np.random.randint(
+                        min(self.max_samples - speech.shape[-1], self.max_init_silence_samples) + 1
+                    )
+
+                speech = np.pad(speech, ((0, 0), (pad_left_samples, 0)))
+                data[self.speech_name] = speech.T   # convert to time first
+            
+            # pad or trim to max_samples
+            speech = data[self.speech_name]
+
+            # speech: (Nmic, Time)
+            if speech.ndim == 1:
+                speech = speech[None, :]
+            else:
+                speech = speech.T
+            if speech.shape[-1] < self.max_samples:
+                speech = np.pad(speech, ((0, 0), (0, self.max_samples - speech.shape[-1])))
+            else:
+                speech = speech[:, :self.max_samples]
+            data[self.speech_name] = speech.T   # convert to time first
+
+        assert check_return_type((data, pad_left_samples))
+        return data, pad_left_samples
+    
+    def _text_augmentation(
+        self, data: Dict[str, Union[str, np.ndarray]], timestamp_shift: int
+    ) -> Dict[str, np.ndarray]:
+        assert check_argument_types()
+
+        if self.text_name in data:
+            text = data[self.text_name]     # 1D numpy array, int64
+
+            # the first token is always a space;
+            # the second token is either <startofprev> or <startoftranscript>
+            text = text[1:]
+
+            # remove prev text
+            if self.train and np.random.uniform() < 1. - self.prev_apply_prob:
+                text = text[(text == self.sos_id).nonzero()[0][0]:]
+
+            # remove timestamps
+            if self.train and np.random.uniform() < 1. - self.timestamp_apply_prob:
+                text = text[np.logical_or(text < self.first_timestamp_id, text > self.last_timestamp_id)]
+                text = np.insert(text, (text == self.sos_id).nonzero()[0][0] + 2, self.notimestamp_id)
+
+            # shift (increase) timestamps
+            text[np.logical_and(text >= self.first_timestamp_id, text <= self.last_timestamp_id)] += timestamp_shift
+
+            data[self.text_name] = text
+
+        assert check_return_type(data)
+        return data
+
+    def __call__(
+        self, uid: str, data: Dict[str, Union[str, np.ndarray]]
+    ) -> Dict[str, np.ndarray]:
+        assert check_argument_types()
+
+        data = self._speech_process(data)
+        data = self._text_process(data)
+
+        # additional processing for whisper-style training
+        data, pad_left_samples = self._pad_or_trim_speech(data)
+        timestamp_shift = pad_left_samples // self.resolution_samples
+        data = self._text_augmentation(data, timestamp_shift)
+
         return data
 
 

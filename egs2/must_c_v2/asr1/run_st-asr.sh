@@ -5,32 +5,34 @@ set -e
 set -u
 set -o pipefail
 
-tgt_lang=de
+train_set=train
+valid_set=dev
+test_sets="dev"
 
-train_set=train.en-${tgt_lang}
-train_dev=dev.en-${tgt_lang}
-test_set="tst-COMMON.en-${tgt_lang} tst-HE.en-${tgt_lang}"
+asr_config=conf/tuning/train_whisper_base_st-asr_ctc0.3_prev0.5_time0.5.yaml
+inference_config=conf/tuning/decode_whisper.yaml
 
-asr_config=conf/tuning/train_asr_conformer.yaml
-inference_config=conf/tuning/decode_asr_conformer.yaml
-
-nbpe=4000
+nbpe=10000
 
 ./asr.sh \
+    --asr_stats_dir exp/asr_stats_raw_bpe10000 \
+    --stage 11 \
+    --stop_stage 11 \
     --use_lm false \
-    --local_data_opts "${tgt_lang}" \
+    --ngpu 4 \
+    --nj 128 \
+    --gpu_inference true \
+    --inference_nj 8 \
+    --feats_type raw \
     --audio_format "flac.ark" \
-    --nj 40 \
-    --inference_nj 40 \
-    --audio_format "flac.ark" \
+    --max_wav_duration 31 \
     --token_type "bpe" \
     --nbpe $nbpe \
-    --feats_type raw \
-    --speed_perturb_factors "0.9 1.0 1.1" \
+    --bpe_nlsyms data/nlsyms.txt \
     --asr_config "${asr_config}" \
     --inference_config "${inference_config}" \
     --train_set "${train_set}" \
-    --valid_set "${train_dev}" \
-    --test_sets "${test_set}" \
+    --valid_set "${valid_set}" \
+    --test_sets "${test_sets}" \
     --bpe_train_text "data/${train_set}/text" \
     --lm_train_text "data/${train_set}/text"  "$@"

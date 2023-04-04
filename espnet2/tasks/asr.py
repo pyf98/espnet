@@ -78,6 +78,7 @@ from espnet2.train.collate_fn import CommonCollateFn
 from espnet2.train.preprocessor import (
     AbsPreprocessor,
     CommonPreprocessor,
+    WhisperPreprocessor,
     CommonPreprocessor_multi,
 )
 from espnet2.train.trainer import Trainer
@@ -190,6 +191,7 @@ preprocessor_choices = ClassChoices(
     "preprocessor",
     classes=dict(
         default=CommonPreprocessor,
+        whisper=WhisperPreprocessor,
         multi=CommonPreprocessor_multi,
     ),
     type_check=AbsPreprocessor,
@@ -373,13 +375,13 @@ class ASRTask(AbsTask):
             help="If len(noise) / len(speech) is smaller than this threshold during "
             "dynamic mixing, a warning will be displayed.",
         )
-        group.add_argument(
-            "--aux_ctc_tasks",
-            type=str,
-            nargs="+",
-            default=[],
-            help="Auxillary tasks to train on using CTC loss. ",
-        )
+        # group.add_argument(
+        #     "--aux_ctc_tasks",
+        #     type=str,
+        #     nargs="+",
+        #     default=[],
+        #     help="Auxillary tasks to train on using CTC loss. ",
+        # )
 
         for class_choices in cls.class_choices_list:
             # Append --<name> and --<name>_conf.
@@ -438,9 +440,9 @@ class ASRTask(AbsTask):
                 speech_volume_normalize=args.speech_volume_normalize
                 if hasattr(args, "rir_scp")
                 else None,
-                aux_task_names=args.aux_ctc_tasks
-                if hasattr(args, "aux_ctc_tasks")
-                else None,
+                # aux_task_names=args.aux_ctc_tasks
+                # if hasattr(args, "aux_ctc_tasks")
+                # else None,
                 **args.preprocessor_conf,
             )
         else:
@@ -466,6 +468,7 @@ class ASRTask(AbsTask):
         MAX_REFERENCE_NUM = 4
 
         retval = ["text_spk{}".format(n) for n in range(2, MAX_REFERENCE_NUM + 1)]
+        retval.append('text_ctc')
         retval = tuple(retval)
 
         logging.info(f"Optional Data Names: {retval }")

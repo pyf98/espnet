@@ -1,0 +1,1 @@
+../../../../utils/reduce_data_dir.sh

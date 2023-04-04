@@ -1,0 +1,91 @@
+preprocessor: whisper
+preprocessor_conf:
+    fs: 16000
+    max_sec: 30
+    resolution_sec: 0.02
+    max_init_silence_sec: 1.0
+    prev_apply_prob: 0.5
+    timestamp_apply_prob: 0.5
+    notimestamp_symbol: "<notimestamps>"
+    first_timestamp_symbol: "<0.00>"
+    last_timestamp_symbol: "<30.00>"
+    sos_symbol: "<startoftranscript>"
+    aux_task_names:
+    - text_ctc
+
+frontend_conf:
+    n_fft: 512
+    win_length: 400
+    hop_length: 160
+
+# specaug: specaug
+# specaug_conf:
+#     apply_time_warp: true
+#     time_warp_window: 5
+#     time_warp_mode: bicubic
+#     apply_freq_mask: true
+#     freq_mask_width_range:
+#     - 0
+#     - 27
+#     num_freq_mask: 2
+#     apply_time_mask: true
+#     time_mask_width_ratio_range:
+#     - 0.
+#     - 0.05
+#     num_time_mask: 5
+
+encoder: transformer
+encoder_conf:
+    output_size: 512
+    attention_heads: 8
+    linear_units: 2048
+    num_blocks: 6
+    dropout_rate: 0.1
+    positional_dropout_rate: 0.1
+    attention_dropout_rate: 0.1
+    input_layer: conv2d2
+    normalize_before: true
+
+decoder: transformer
+decoder_conf:
+    attention_heads: 8
+    linear_units: 2048
+    num_blocks: 6
+    dropout_rate: 0.1
+    positional_dropout_rate: 0.1
+    self_attention_dropout_rate: 0.1
+    src_attention_dropout_rate: 0.1
+
+model_conf:
+    ctc_weight: 0.3
+    lsm_weight: 0.1
+    length_normalized_loss: false
+    sym_sos: "<startoftranscript>"
+    sym_eos: "<endoftext>"
+
+optim: adamw
+optim_conf:
+    lr: 1.0e-03
+    betas:
+    - 0.9
+    - 0.98
+    eps: 1.0e-06
+    weight_decay: 0.0
+scheduler: warmuplr
+scheduler_conf:
+    warmup_steps: 2000
+
+batch_type: unsorted
+batch_size: 32
+accum_grad: 8
+num_iters_per_epoch: 5000
+max_epoch: 100
+patience: none
+init: xavier_normal
+best_model_criterion:
+-   - valid
+    - acc
+    - max
+keep_nbest_models: 10
+use_amp: true
+num_workers: 8

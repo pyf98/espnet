@@ -885,7 +885,6 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ] && ! [[ " ${skip_stages} " =~ [
         echo "${oov}"
         # Remove <unk>, <s>, </s> from the vocabulary
         <"${bpeprefix}".vocab awk '{ if( NR != 1 && NR != 2 && NR != 3 ){ print $1; } }'
-        echo "${sos_eos}"
         } > "${token_list}"
 
     elif [ "${token_type}" = char ] || [ "${token_type}" = word ]; then
@@ -1197,6 +1196,13 @@ if [ ${stage} -le 10 ] && [ ${stop_stage} -ge 10 ] && ! [[ " ${skip_stages} " =~
         _opts+="--valid_data_path_and_name_and_type ${_asr_valid_dir}/${ref_text_files[$i]},${ref_text_names[$i]},text "
     done
 
+    if [ -f ${_asr_train_dir}/text.ctc ]; then
+        _opts+="--train_data_path_and_name_and_type ${_asr_train_dir}/text.ctc,text_ctc,text "
+    fi
+    if [ -f ${_asr_valid_dir}/text.ctc ]; then
+        _opts+="--valid_data_path_and_name_and_type ${_asr_valid_dir}/text.ctc,text_ctc,text "
+    fi
+
     # shellcheck disable=SC2046,SC2086
     ${train_cmd} JOB=1:"${_nj}" "${_logdir}"/stats.JOB.log \
         ${python} -m espnet2.bin.${asr_task}_train \
@@ -1306,6 +1312,9 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ] && ! [[ " ${skip_stages} " =~
         done
         _opts+="--multiple_iterator true "
 
+        if [ -f ${_split_dir}/text.ctc ]; then
+            _opts+="--train_data_path_and_name_and_type ${_split_dir}/text.ctc,text_ctc,text "
+        fi
     else
         _opts+="--train_data_path_and_name_and_type ${_asr_train_dir}/${_scp},speech,${_type} "
         _opts+="--train_shape_file ${asr_stats_dir}/train/speech_shape "
@@ -1323,6 +1332,10 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ] && ! [[ " ${skip_stages} " =~
             _opts+="--train_data_path_and_name_and_type ${_asr_train_dir}/${ref_text_files[$i]},${ref_text_names[$i]},text "
             _opts+="--train_shape_file ${asr_stats_dir}/train/${ref_text_names[$i]}_shape.${token_type} "
         done
+
+        if [ -f ${_asr_train_dir}/text.ctc ]; then
+            _opts+="--train_data_path_and_name_and_type ${_asr_train_dir}/text.ctc,text_ctc,text "
+        fi
     fi
 
     # shellcheck disable=SC2068
@@ -1330,6 +1343,10 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ] && ! [[ " ${skip_stages} " =~
         _opts+="--valid_data_path_and_name_and_type ${_asr_valid_dir}/${ref_text_files[$i]},${ref_text_names[$i]},text "
         _opts+="--valid_shape_file ${asr_stats_dir}/valid/${ref_text_names[$i]}_shape.${token_type} "
     done
+
+    if [ -f ${_asr_valid_dir}/text.ctc ]; then
+        _opts+="--valid_data_path_and_name_and_type ${_asr_valid_dir}/text.ctc,text_ctc,text "
+    fi
 
     log "Generate '${asr_exp}/run.sh'. You can resume the process from stage 11 using this script"
     mkdir -p "${asr_exp}"; echo "${run_args} --stage 11 \"\$@\"; exit \$?" > "${asr_exp}/run.sh"; chmod +x "${asr_exp}/run.sh"

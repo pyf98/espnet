@@ -24,6 +24,7 @@ from espnet.nets.pytorch_backend.transformer.positionwise_feed_forward import (
 )
 from espnet.nets.pytorch_backend.transformer.repeat import repeat
 from espnet.nets.pytorch_backend.transformer.subsampling import (
+    Conv1dSubsampling2,
     Conv2dSubsampling,
     Conv2dSubsampling1,
     Conv2dSubsampling2,
@@ -101,6 +102,8 @@ class TransformerEncoder(AbsEncoder):
             self.embed = Conv2dSubsampling6(input_size, output_size, dropout_rate)
         elif input_layer == "conv2d8":
             self.embed = Conv2dSubsampling8(input_size, output_size, dropout_rate)
+        elif input_layer == "conv1d2":
+            self.embed = Conv1dSubsampling2(input_size, output_size, dropout_rate)
         elif input_layer == "embed":
             self.embed = torch.nn.Sequential(
                 torch.nn.Embedding(input_size, output_size, padding_idx=padding_idx),
@@ -190,6 +193,7 @@ class TransformerEncoder(AbsEncoder):
             or isinstance(self.embed, Conv2dSubsampling2)
             or isinstance(self.embed, Conv2dSubsampling6)
             or isinstance(self.embed, Conv2dSubsampling8)
+            or isinstance(self.embed, Conv1dSubsampling2)
         ):
             short_status, limit_size = check_short_utt(self.embed, xs_pad.size(1))
             if short_status:

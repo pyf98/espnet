@@ -91,6 +91,7 @@ class Speech2Text:
         hugging_face_decoder_max_length: int = 256,
         time_sync: bool = False,
         multi_asr: bool = False,
+        hyp_primer: List[str] = None,
     ):
         assert check_argument_types()
 
@@ -318,6 +319,9 @@ class Speech2Text:
 
         if bpemodel not in ["whisper_en", "whisper_multilingual"]:
             converter = TokenIDConverter(token_list=token_list)
+            if hyp_primer is not None:
+                beam_search.set_hyp_primer(converter.tokens2ids(hyp_primer))
+                logging.info(f"Set primer text and tokens: {hyp_primer}; {converter.tokens2ids(hyp_primer)}")
         else:
             converter = OpenAIWhisperTokenIDConverter(model_type=bpemodel)
             beam_search.set_hyp_primer(
@@ -555,6 +559,7 @@ def inference(
     hugging_face_decoder_max_length: int,
     time_sync: bool,
     multi_asr: bool,
+    hyp_primer: List[str],
 ):
     assert check_argument_types()
     if batch_size > 1:
@@ -607,6 +612,7 @@ def inference(
         hugging_face_decoder=hugging_face_decoder,
         hugging_face_decoder_max_length=hugging_face_decoder_max_length,
         time_sync=time_sync,
+        hyp_primer=hyp_primer,
     )
     speech2text = Speech2Text.from_pretrained(
         model_tag=model_tag,
@@ -861,6 +867,14 @@ def get_parser():
         "--transducer_conf",
         default=None,
         help="The keyword arguments for transducer beam search.",
+    )
+
+    group.add_argument(
+        "--hyp_primer",
+        default=None,
+        type=str,
+        nargs="*",
+        help="List of tokens to initialize hypothesis"
     )
 
     group = parser.add_argument_group("Text converter related")

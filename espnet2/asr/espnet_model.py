@@ -24,6 +24,7 @@ from espnet.nets.pytorch_backend.transformer.add_sos_eos import add_sos_eos
 from espnet.nets.pytorch_backend.transformer.label_smoothing_loss import (  # noqa: H301
     LabelSmoothingLoss,
 )
+from espnet.nets.pytorch_backend.nets_utils import pad_list
 
 if V(torch.__version__) >= V("1.6.0"):
     from torch.cuda.amp import autocast
@@ -231,8 +232,10 @@ class ESPnetASRModel(AbsESPnetModel):
 
         # 1. CTC branch
         if self.ctc_weight != 0.0:
+            assert "text_ctc" in kwargs and "text_ctc_lengths" in kwargs
+
             loss_ctc, cer_ctc = self._calc_ctc_loss(
-                encoder_out, encoder_out_lens, text, text_lengths
+                encoder_out, encoder_out_lens, kwargs['text_ctc'], kwargs['text_ctc_lengths']
             )
 
             # Collect CTC branch stats
@@ -532,8 +535,19 @@ class ESPnetASRModel(AbsESPnetModel):
             )
             ys_pad_lens += 1
 
-        ys_in_pad, ys_out_pad = add_sos_eos(ys_pad, self.sos, self.eos, self.ignore_id)
-        ys_in_lens = ys_pad_lens + 1
+        # ys_in_pad, ys_out_pad = add_sos_eos(ys_pad, self.sos, self.eos, self.ignore_id)
+        # ys_in_lens = ys_pad_lens + 1
+
+        ys = [y[y != self.ignore_id] for y in ys_pad]
+        
+        ys_in_pad = pad_list([y[:-1] for y in ys], self.eos)  # remove <eos>
+        ys_in_lens = ys_pad_lens - 1
+
+        ys_out_tmp = [y.clone() for y in ys]
+        for idx, row in enumerate(ys_out_tmp):
+            ys_out_tmp[idx][:(row == self.sos).nonzero().item() + 1] = self.ignore_id
+            ys_out_tmp[idx] = ys_out_tmp[idx][1:]
+        ys_out_pad = pad_list(ys_out_tmp, self.ignore_id)
 
         # 1. Forward decoder
         decoder_out, _ = self.decoder(

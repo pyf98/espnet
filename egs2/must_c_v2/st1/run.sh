@@ -21,10 +21,12 @@ tgt_nbpe=4000
 # tc: truecase
 # lc: lowercase
 # lc.rm: lowercase with punctuation removal
-src_case=lc.rm
+# src_case=lc.rm
+src_case=tc
 tgt_case=tc
 
 ./st.sh \
+    --stop_stage 1 \
     --local_data_opts "${tgt_lang}" \
     --audio_format "flac.ark" \
     --nj 40 \
