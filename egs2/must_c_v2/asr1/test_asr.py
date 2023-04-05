@@ -1,5 +1,5 @@
-import soundfile
 from kaldiio import load_scp
+import soundfile as sf
 import torch
 import numpy as np
 from pathlib import Path
@@ -33,7 +33,7 @@ def format_text(text: str) -> str:
 
 if __name__ == "__main__":
     s2t = Speech2Text(
-        asr_model_file='exp/asr_train_whisper_base_st-asr_ctc0.3_prev0.5_time0.5_raw_bpe10000/66epoch.pth',
+        asr_model_file='exp/asr_train_whisper_base_st-asr_ctc0.3_prev0.5_time0.5_small-ebf_lr1e-3_warmup5k_raw_bpe10000/87epoch.pth',
         token_type='bpe',
         bpemodel='data/token_list/bpe_unigram10000/bpe.model',
         device='cuda' if torch.cuda.is_available() else 'cpu',
@@ -41,20 +41,24 @@ if __name__ == "__main__":
         ctc_weight=0.0,
         penalty=0.0,
         maxlenratio=0.0,
-        hyp_primer=["<startoftranscript>", "<translateja>", "<0.00>"],
+        hyp_primer=["<startoftranscript>", "<transcribe>", "<0.00>"],
     )
+    
+    # Option 1: Load audio from Kaldi-style files
+    data_dir = Path('dump/raw/dev')
+    d = load_scp(str(data_dir / 'wav.scp'))
+    uttid2trans = parse_text(data_dir / 'text')
 
-    scp_file = Path('dump/raw/dev/wav.scp')
-    text_file = scp_file.parent / 'text'
-    d = load_scp(str(scp_file))
-    uttid2trans = parse_text(text_file)
-
-    uttid = 'ted_00767_1106380_1133560_en-ja_translate'
+    uttid = 'ted_00824_0110950_0139770_en-zh_transcribe'
     
     rate, audio = d[uttid]
-    soundfile.write(f"{uttid}.wav", audio, rate)
-    audio = np.pad(audio, (0, 30 * rate - len(audio)))
+    sf.write(f"{uttid}.wav", audio, rate)
 
+    if len(audio) < 30 * rate:
+        audio = np.pad(audio, (0, 30 * rate - len(audio)))
+    else:
+        audio = audio[:30 * rate]
+    assert len(audio) == 30 * rate
     result = s2t(audio)
     hyp = result[0][0]
 
@@ -66,4 +70,23 @@ if __name__ == "__main__":
     print("********* Hyp *********")
     print(format_text(hyp))
 
-    breakpoint()
+
+    #################################
+    # Option 2: Load audio from file
+    #################################
+    # audio, rate = sf.read("/scratch/bbjs/peng6/corpora/MuST-C/en-de/data/tst-COMMON/wav/ted_1166.wav")
+    # start_sec = 963.43
+    # end_sec = 993.43
+    # audio = audio[int(start_sec * rate):int(end_sec * rate)]
+    # sf.write(f"tmp-{start_sec}-{end_sec}.wav", audio, rate)
+
+    # if len(audio) < 30 * rate:
+    #     audio = np.pad(audio, (0, 30 * rate - len(audio)))
+    # else:
+    #     audio = audio[:30 * rate]
+    # assert len(audio) == 30 * rate
+    # result = s2t(audio)
+    # hyp = result[0][0]
+
+    # print("********* Hyp *********")
+    # print(format_text(hyp))
