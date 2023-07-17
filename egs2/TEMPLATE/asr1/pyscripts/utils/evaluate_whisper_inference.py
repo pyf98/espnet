@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 import argparse
+import kaldiio
 import logging
 import os
+import shutil
+import soundfile as sf
 import sys
+import tempfile
 from distutils.version import LooseVersion
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
@@ -50,7 +54,12 @@ class Speech2Text:
         # Input as audio signal
         result = self.model.transcribe(speech, **decode_options)
 
-        return result["text"]
+        # NOTE(yifan): more than one period will remain after applying whisper_en cleaner
+        # Here, we replace it by a single period
+        # e.g.: "Hello..." -> "hello ."
+        text = result["text"].replace("...", ".")
+
+        return text
 
 
 def inference(
@@ -89,23 +98,35 @@ def inference(
     )
 
     # 3. Build data-iterator
-    info_list = []
-    wavscp = open(key_file, "r", encoding="utf-8")
-    for line in wavscp.readlines():
-        info_list.append(line.split(maxsplit=1))
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        wavscp = os.path.join(tmpdirname, "wav.scp")
+        shutil.copy(key_file, wavscp)
+        data = kaldiio.load_scp(wavscp)
 
-    # 7 .Start for-loop
-    # FIXME(kamo): The output format should be discussed about
-    with DatadirWriter(output_dir) as writer:
-        for key, audio_file in info_list:
-            # N-best list of (text, token, token_int, hyp_object)
-            results = speech2text(os.path.abspath(audio_file.strip()), **decode_options)
+        # 7 .Start for-loop
+        # FIXME(kamo): The output format should be discussed about
+        with DatadirWriter(output_dir) as writer:
+            for key, (rate, arr) in data.items():
+                # Save wav to a temp file
+                wavname = os.path.join(tmpdirname, f"{key}.wav")
+                sf.write(wavname, arr, rate)
 
-            # Normal ASR
-            ibest_writer = writer[f"1best_recog"]
+                logging.info(key)
+                logging.info(f"speech len: {arr.shape[-1]}")
 
-            # Write the result to each file
-            ibest_writer["text"][key] = results
+                # text
+                results = speech2text(wavname, **decode_options)
+
+                logging.info(f"{results}\n")
+
+                # Normal ASR
+                ibest_writer = writer["1best_recog"]
+
+                # Write the result to each file
+                ibest_writer["text"][key] = results
+
+                # Remove wav file
+                os.remove(wavname)
 
 
 def get_parser():

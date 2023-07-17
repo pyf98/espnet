@@ -134,20 +134,20 @@ else
     _ngpu=0
 fi
 
-if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
-    log "stage 1: Format wav.scp"
-    # shellcheck disable=SC2154
-    scripts/audio/format_wav_scp.sh \
-        --nj "${nj}" \
-        --cmd "${train_cmd}" \
-        --audio-format wav \
-        --fs "${fs}" \
-        "${wavscp}" "${outdir}/tmp"
-fi
+# if [ ${stage} -le 1 ] && [ ${stop_stage} -ge 1 ]; then
+#     log "stage 1: Format wav.scp"
+#     # shellcheck disable=SC2154
+#     scripts/audio/format_wav_scp.sh \
+#         --nj "${nj}" \
+#         --cmd "${train_cmd}" \
+#         --audio-format wav \
+#         --fs "${fs}" \
+#         "${wavscp}" "${outdir}/tmp"
+# fi
 
-if [ -e "${outdir}/tmp/wav.scp" ]; then
-    wavscp="${outdir}/tmp/wav.scp"
-fi
+# if [ -e "${outdir}/tmp/wav.scp" ]; then
+#     wavscp="${outdir}/tmp/wav.scp"
+# fi
 
 if [ ${stage} -le 2 ] && [ ${stop_stage} -ge 2 ]; then
     log "stage 2: ASR inference"

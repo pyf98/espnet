@@ -89,3 +89,5 @@ tools/ice-g2p*
 tools/fairseq*
 tools/featbin*
 tools/miniconda
+
+egs2/aishell/asr1/whisper*outputs
