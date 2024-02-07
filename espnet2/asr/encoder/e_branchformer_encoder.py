@@ -192,6 +192,8 @@ class EBranchformerEncoder(AbsEncoder):
         attention_layer_type: str = "rel_selfattn",
         pos_enc_layer_type: str = "rel_pos",
         rel_pos_type: str = "latest",
+        attention_qk_norm: bool = False,
+        use_flash_attn: bool = False,
         cgmlp_linear_units: int = 2048,
         cgmlp_conv_kernel: int = 31,
         use_linear_after_conv: bool = False,
@@ -348,6 +350,8 @@ class EBranchformerEncoder(AbsEncoder):
                 attention_heads,
                 output_size,
                 attention_dropout_rate,
+                attention_qk_norm,
+                use_flash_attn,
             )
         elif attention_layer_type == "legacy_rel_selfattn":
             assert pos_enc_layer_type == "legacy_rel_pos"

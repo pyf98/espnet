@@ -298,6 +298,10 @@ class TransformerDecoder(BaseTransformerDecoder):
         normalize_before: bool = True,
         concat_after: bool = False,
         layer_drop_rate: float = 0.0,
+        self_attention_qk_norm: bool = False,
+        src_attention_qk_norm: bool = False,
+        self_attention_use_flash_attn: bool = False,
+        src_attention_use_flash_attn: bool = False,
     ):
         assert check_argument_types()
         super().__init__(
@@ -317,10 +321,12 @@ class TransformerDecoder(BaseTransformerDecoder):
             lambda lnum: DecoderLayer(
                 attention_dim,
                 MultiHeadedAttention(
-                    attention_heads, attention_dim, self_attention_dropout_rate
+                    attention_heads, attention_dim, self_attention_dropout_rate,
+                    self_attention_qk_norm, self_attention_use_flash_attn, causal=True,
                 ),
                 MultiHeadedAttention(
-                    attention_heads, attention_dim, src_attention_dropout_rate
+                    attention_heads, attention_dim, src_attention_dropout_rate,
+                    src_attention_qk_norm, src_attention_use_flash_attn, cross_attn=True,
                 ),
                 PositionwiseFeedForward(attention_dim, linear_units, dropout_rate),
                 dropout_rate,
