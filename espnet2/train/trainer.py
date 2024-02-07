@@ -256,7 +256,10 @@ class Trainer:
                         else None
                     ),
                     find_unused_parameters=trainer_options.unused_parameters,
+                    gradient_as_bucket_view=True,
                 )
+                from torch.distributed.algorithms.ddp_comm_hooks.default_hooks import bf16_compress_hook
+                dp_model.register_comm_hook(None, bf16_compress_hook)
         elif distributed_option.ngpu > 1:
             dp_model = torch.nn.parallel.DataParallel(
                 model,
@@ -314,6 +317,8 @@ class Trainer:
                     distributed_option=distributed_option,
                 )
 
+            torch.cuda.empty_cache()
+
             with reporter.observe("valid") as sub_reporter:
                 cls.validate_one_epoch(
                     model=dp_model,
@@ -325,15 +330,18 @@ class Trainer:
             if not distributed_option.distributed or distributed_option.dist_rank == 0:
                 # att_plot doesn't support distributed
                 if plot_attention_iter_factory is not None:
-                    with reporter.observe("att_plot") as sub_reporter:
-                        cls.plot_attention(
-                            model=model,
-                            output_dir=output_dir / "att_ws",
-                            summary_writer=train_summary_writer,
-                            iterator=plot_attention_iter_factory.build_iter(iepoch),
-                            reporter=sub_reporter,
-                            options=trainer_options,
-                        )
+                    try:
+                        with reporter.observe("att_plot") as sub_reporter:
+                            cls.plot_attention(
+                                model=model,
+                                output_dir=output_dir / "att_ws",
+                                summary_writer=train_summary_writer,
+                                iterator=plot_attention_iter_factory.build_iter(iepoch),
+                                reporter=sub_reporter,
+                                options=trainer_options,
+                            )
+                    except Exception as e:
+                        logging.warning(f"Exception occurred in plot attention: {e}")
 
             # 2. LR Scheduler step
             for scheduler in schedulers:
@@ -795,8 +803,13 @@ class Trainer:
             batch = to_device(batch, "cuda" if ngpu > 0 else "cpu")
             if no_forward_run:
                 continue
-
-            retval = model(**batch)
+            
+            with autocast(
+                options.use_amp,
+                **autocast_args,
+            ):
+                retval = model(**batch)
+            
             if isinstance(retval, dict):
                 stats = retval["stats"]
                 weight = retval["weight"]
@@ -852,7 +865,11 @@ class Trainer:
 
             # 1. Forwarding model and gathering all attentions
             #    calculate_all_attentions() uses single gpu only.
-            att_dict = calculate_all_attentions(model, batch)
+            with autocast(
+                options.use_amp,
+                **autocast_args,
+            ):
+                att_dict = calculate_all_attentions(model, batch)
 
             # 2. Plot attentions: This part is slow due to matplotlib
             for k, att_list in att_dict.items():
