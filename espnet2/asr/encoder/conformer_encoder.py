@@ -114,6 +114,8 @@ class ConformerEncoder(AbsEncoder):
         stochastic_depth_rate: Union[float, List[float]] = 0.0,
         layer_drop_rate: float = 0.0,
         max_pos_emb_len: int = 5000,
+        attention_qk_norm: bool = False,
+        use_flash_attn: bool = False,
     ):
         assert check_argument_types()
         super().__init__()
@@ -239,6 +241,8 @@ class ConformerEncoder(AbsEncoder):
                 attention_heads,
                 output_size,
                 attention_dropout_rate,
+                attention_qk_norm,
+                use_flash_attn,
             )
         elif selfattention_layer_type == "legacy_rel_selfattn":
             assert pos_enc_layer_type == "legacy_rel_pos"

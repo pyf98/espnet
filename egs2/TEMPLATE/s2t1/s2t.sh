@@ -1773,14 +1773,14 @@ if [ ${stage} -le 16 ] && [ ${stop_stage} -ge 16 ] && ! [[ " ${skip_stages} " =~
     task_exp=${s2t_exp}
     eval "echo \"$(cat scripts/utils/TEMPLATE_HF_Readme.md)\"" > "${dir_repo}"/README.md
 
-    this_folder=${PWD}
-    cd ${dir_repo}
-    if [ -n "$(git status --porcelain)" ]; then
-        git add .
-        git commit -m "Update model"
-    fi
-    git push
-    cd ${this_folder}
+    # this_folder=${PWD}
+    # cd ${dir_repo}
+    # if [ -n "$(git status --porcelain)" ]; then
+    #     git add .
+    #     git commit -m "Update model"
+    # fi
+    # git push
+    # cd ${this_folder}
 fi
 
 log "Successfully finished. [elapsed=${SECONDS}s]"

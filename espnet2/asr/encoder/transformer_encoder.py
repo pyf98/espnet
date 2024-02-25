@@ -80,6 +80,8 @@ class TransformerEncoder(AbsEncoder):
         interctc_layer_idx: List[int] = [],
         interctc_use_conditioning: bool = False,
         layer_drop_rate: float = 0.0,
+        attention_qk_norm: bool = False,
+        use_flash_attn: bool = False,
     ):
         assert check_argument_types()
         super().__init__()
@@ -153,7 +155,8 @@ class TransformerEncoder(AbsEncoder):
             lambda lnum: EncoderLayer(
                 output_size,
                 MultiHeadedAttention(
-                    attention_heads, output_size, attention_dropout_rate
+                    attention_heads, output_size, attention_dropout_rate,
+                    attention_qk_norm, use_flash_attn,
                 ),
                 positionwise_layer(*positionwise_layer_args),
                 dropout_rate,
