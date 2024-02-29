@@ -154,7 +154,8 @@ class EBranchformerEncoderLayer(torch.nn.Module):
 
         if pos_emb is not None:
             x2 = (x2, pos_emb)
-        x2 = self.cgmlp(x2, mask)
+        # x2 = self.cgmlp(x2, mask)
+        x2 = torch.utils.checkpoint.checkpoint(self.cgmlp, x2, mask, use_reentrant=False)
         if isinstance(x2, tuple):
             x2 = x2[0]
 
