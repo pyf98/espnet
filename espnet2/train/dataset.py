@@ -6,6 +6,7 @@ import numbers
 import re
 from abc import ABC, abstractmethod
 from typing import Any, Callable, Collection, Dict, Mapping, Tuple, Union
+from pathlib import Path
 
 import h5py
 import humanfriendly
@@ -227,6 +228,62 @@ def rand_int_loader(filepath, loader_type):
     return IntRandomGenerateDataset(filepath, low, high)
 
 
+def create_index(file_path):
+    index = []
+    with open(file_path, 'rb') as file:
+        offset = 0
+        while True:
+            line = file.readline()
+            if not line:
+                break
+            index.append(offset)
+            offset += len(line)
+    return index
+
+
+def get_line_by_index(file_path, index, line_number):
+    with open(file_path, 'rb') as file:
+        file.seek(index[line_number])
+        return file.readline().decode('utf-8')
+
+
+class TextLoaderWithIndex:
+    def __init__(self, path: str):
+        self.path = path
+        self.index = create_index(path)
+
+    def __repr__(self) -> str:
+        return str(self.path)
+
+    def __len__(self) -> int:
+        return len(self.index)
+
+    def __getitem__(self, key: int) -> str:
+        line = get_line_by_index(self.path, self.index, key)
+        return line.rstrip().split(maxsplit=1)[1]
+
+
+class KaldiArkLoaderWithIndex:
+    def __init__(self, path, float_dtype=None, max_cache_fd=None, allow_multi_rates=None):
+        self.path = path
+        self.index = create_index(path)
+        self.float_dtype = float_dtype
+
+    def __repr__(self) -> str:
+        return str(self.path)
+
+    def __len__(self) -> int:
+        return len(self.index)
+
+    def __getitem__(self, key: int) -> np.ndarray:
+        line = get_line_by_index(self.path, self.index, key)
+        wav = line.rstrip().split(maxsplit=1)[1]
+        rate, array = kaldiio.load_mat(wav)
+        if self.float_dtype is not None:
+            array = array.astype(self.float_dtype)
+        return array
+
+
 DATA_TYPES = {
     "sound": dict(
         func=sound_loader,
@@ -282,7 +339,8 @@ DATA_TYPES = {
         "   ...",
     ),
     "kaldi_ark": dict(
-        func=kaldi_loader,
+        # func=kaldi_loader,
+        func=KaldiArkLoaderWithIndex,
         kwargs=["max_cache_fd", "allow_multi_rates"],
         help="Kaldi-ark file type."
         "\n\n"
@@ -340,7 +398,8 @@ DATA_TYPES = {
         "   ...",
     ),
     "text": dict(
-        func=read_2columns_text,
+        # func=read_2columns_text,
+        func=TextLoaderWithIndex,
         kwargs=[],
         help="Return text as is. The text must be converted to ndarray "
         "by 'preprocess'."
@@ -479,7 +538,8 @@ class ESPnetDataset(AbsDataset):
 
     def _build_loader(
         self, path: str, loader_type: str
-    ) -> Mapping[str, Union[np.ndarray, torch.Tensor, str, numbers.Number]]:
+    # ) -> Mapping[str, Union[np.ndarray, torch.Tensor, str, numbers.Number]]:
+    ):
         """Helper function to instantiate Loader.
 
         Args:
@@ -538,10 +598,10 @@ class ESPnetDataset(AbsDataset):
     def __getitem__(self, uid: Union[str, int]) -> Tuple[str, Dict[str, np.ndarray]]:
         assert check_argument_types()
 
-        # Change integer-id to string-id
-        if isinstance(uid, int):
-            d = next(iter(self.loader_dict.values()))
-            uid = list(d)[uid]
+        # # Change integer-id to string-id
+        # if isinstance(uid, int):
+        #     d = next(iter(self.loader_dict.values()))
+        #     uid = list(d)[uid]
 
         if self.cache is not None and uid in self.cache:
             data = self.cache[uid]
@@ -580,7 +640,7 @@ class ESPnetDataset(AbsDataset):
         # 2. [Option] Apply preprocessing
         #   e.g. espnet2.train.preprocessor:CommonPreprocessor
         if self.preprocess is not None:
-            data = self.preprocess(uid, data)
+            data = self.preprocess(str(uid), data)
 
         # 3. Force data-precision
         for name in data:
@@ -603,6 +663,6 @@ class ESPnetDataset(AbsDataset):
         if self.cache is not None and self.cache.size < self.max_cache_size:
             self.cache[uid] = data
 
-        retval = uid, data
+        retval = str(uid), data
         assert check_return_type(retval)
         return retval

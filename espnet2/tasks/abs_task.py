@@ -1654,6 +1654,7 @@ class AbsTask(ABC):
             utt2category_file=utt2category_file,
         )
 
+        # NOTE(yifan): uttid is int
         batches = list(batch_sampler)
         if iter_options.num_batches is not None:
             batches = batches[: iter_options.num_batches]

@@ -1,5 +1,5 @@
 import logging
-from typing import Iterator, Tuple
+from typing import Iterator, Tuple, Union
 
 from typeguard import check_argument_types
 
@@ -40,7 +40,10 @@ class UnsortedBatchSampler(AbsSampler):
         if len(utt2any) == 0:
             logging.warning(f"{key_file} is empty")
         # In this case the, the first column in only used
-        keys = list(utt2any)
+        # keys = list(utt2any)
+        # NOTE(yifan): use int as uttid
+        keys = list(range(len(utt2any)))
+        del utt2any
         if len(keys) == 0:
             raise RuntimeError(f"0 lines found: {key_file}")
 
@@ -86,5 +89,5 @@ class UnsortedBatchSampler(AbsSampler):
     def __len__(self):
         return len(self.batch_list)
 
-    def __iter__(self) -> Iterator[Tuple[str, ...]]:
+    def __iter__(self) -> Iterator[Tuple[Union[str, int], ...]]:
         return iter(self.batch_list)
