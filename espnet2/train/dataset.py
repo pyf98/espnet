@@ -261,6 +261,21 @@ class TextLoaderWithIndex:
     def __getitem__(self, key: int) -> str:
         line = get_line_by_index(self.path, self.index, key)
         return line.rstrip().split(maxsplit=1)[1]
+    
+
+class TextLoader:
+    def __init__(self, path: str):
+        self.path = path
+        self.data = list(read_2columns_text(path).values())
+
+    def __repr__(self) -> str:
+        return str(self.path)
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, key: int) -> str:
+        return self.data[key]
 
 
 class KaldiArkLoaderWithIndex:
@@ -278,6 +293,26 @@ class KaldiArkLoaderWithIndex:
     def __getitem__(self, key: int) -> np.ndarray:
         line = get_line_by_index(self.path, self.index, key)
         wav = line.rstrip().split(maxsplit=1)[1]
+        rate, array = kaldiio.load_mat(wav)
+        if self.float_dtype is not None:
+            array = array.astype(self.float_dtype)
+        return array
+
+
+class KaldiArkLoader:
+    def __init__(self, path, float_dtype=None, max_cache_fd=None, allow_multi_rates=None):
+        self.path = path
+        self.data = list(read_2columns_text(path).values())
+        self.float_dtype = float_dtype
+
+    def __repr__(self) -> str:
+        return str(self.path)
+
+    def __len__(self) -> int:
+        return len(self.data)
+
+    def __getitem__(self, key: int) -> np.ndarray:
+        wav = self.data[key]
         rate, array = kaldiio.load_mat(wav)
         if self.float_dtype is not None:
             array = array.astype(self.float_dtype)
@@ -338,9 +373,18 @@ DATA_TYPES = {
         "   utterance_id_B start_1 end_1 phone_1 start_2 end_2 phone_2 ...\n"
         "   ...",
     ),
+    "indexed_kaldi_ark": dict(
+        func=KaldiArkLoaderWithIndex,
+        kwargs=["max_cache_fd", "allow_multi_rates"],
+        help="Kaldi-ark file type."
+        "\n\n"
+        "   utterance_id_A /some/where/a.ark:123\n"
+        "   utterance_id_B /some/where/a.ark:456\n"
+        "   ...",
+    ),
     "kaldi_ark": dict(
         # func=kaldi_loader,
-        func=KaldiArkLoaderWithIndex,
+        func=KaldiArkLoader,
         kwargs=["max_cache_fd", "allow_multi_rates"],
         help="Kaldi-ark file type."
         "\n\n"
@@ -397,9 +441,19 @@ DATA_TYPES = {
         "   utterance_id_B 3.,3.12,1.1\n"
         "   ...",
     ),
+    "indexed_text": dict(
+        func=TextLoaderWithIndex,
+        kwargs=[],
+        help="Return text as is. The text must be converted to ndarray "
+        "by 'preprocess'."
+        "\n\n"
+        "   utterance_id_A hello world\n"
+        "   utterance_id_B foo bar\n"
+        "   ...",
+    ),
     "text": dict(
         # func=read_2columns_text,
-        func=TextLoaderWithIndex,
+        func=TextLoader,
         kwargs=[],
         help="Return text as is. The text must be converted to ndarray "
         "by 'preprocess'."

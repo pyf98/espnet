@@ -1301,7 +1301,9 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ] && ! [[ " ${skip_stages} " =~
         _scp=wav.scp
         # "sound" supports "wav", "flac", etc.
         if [[ "${_audio_format}" == *ark* ]]; then
-            _type=kaldi_ark
+            # _type=kaldi_ark
+            _type_valid=kaldi_ark
+            _type=indexed_kaldi_ark
         elif [[ "${_audio_format}" == *multi* ]]; then
             _type=multi_columns_sound
         else
@@ -1365,12 +1367,12 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ] && ! [[ " ${skip_stages} " =~
         # shellcheck disable=SC2068
         for extra_txt in ${utt_extra_files}; do
             _opts+="--fold_length ${s2t_text_fold_length} "
-            _opts+="--train_data_path_and_name_and_type ${_s2t_train_dir}/${extra_txt},${extra_txt//./_},text "
+            _opts+="--train_data_path_and_name_and_type ${_s2t_train_dir}/${extra_txt},${extra_txt//./_},indexed_text "
             _opts+="--train_shape_file ${s2t_stats_dir}/train/${extra_txt//./_}_shape.${token_type} "
         done
         for i in ${!ref_text_names[@]}; do
             _opts+="--fold_length ${s2t_text_fold_length} "
-            _opts+="--train_data_path_and_name_and_type ${_s2t_train_dir}/${ref_text_files[$i]},${ref_text_names[$i]},text "
+            _opts+="--train_data_path_and_name_and_type ${_s2t_train_dir}/${ref_text_files[$i]},${ref_text_names[$i]},indexed_text "
             _opts+="--train_shape_file ${s2t_stats_dir}/train/${ref_text_names[$i]}_shape.${token_type} "
         done
     fi
@@ -1413,7 +1415,7 @@ if [ ${stage} -le 11 ] && [ ${stop_stage} -ge 11 ] && ! [[ " ${skip_stages} " =~
             --non_linguistic_symbols "${nlsyms_txt}" \
             --cleaner "${cleaner}" \
             --g2p "${g2p}" \
-            --valid_data_path_and_name_and_type "${_s2t_valid_dir}/${_scp},speech,${_type}" \
+            --valid_data_path_and_name_and_type "${_s2t_valid_dir}/${_scp},speech,${_type_valid}" \
             --valid_shape_file "${s2t_stats_dir}/valid/speech_shape" \
             --resume true \
             --fold_length "${_fold_length}" \

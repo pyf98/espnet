@@ -791,25 +791,27 @@ class Trainer:
         # [For distributed] Because iteration counts are not always equals between
         # processes, send stop-flag to the other processes if iterator is finished
         iterator_stop = torch.tensor(0).to("cuda" if ngpu > 0 else "cpu")
-        for utt_id, batch in iterator:
+        # for utt_id, batch in iterator:
+        for utt_id, batch in reporter.measure_iter_time(iterator, "iter_time"):
             assert isinstance(batch, dict), type(batch)
-            if distributed:
-                torch.distributed.all_reduce(iterator_stop, ReduceOp.SUM)
-                if iterator_stop > 0:
-                    break
+            # if distributed:
+            #     torch.distributed.all_reduce(iterator_stop, ReduceOp.SUM)
+            #     if iterator_stop > 0:
+            #         break
 
             batch["utt_id"] = utt_id
 
             batch = to_device(batch, "cuda" if ngpu > 0 else "cpu")
             if no_forward_run:
                 continue
-            
+
             with autocast(
                 options.use_amp,
                 **autocast_args,
             ):
-                retval = model(**batch)
-            
+                with reporter.measure_time("forward_time"):
+                    retval = model(**batch)
+
             if isinstance(retval, dict):
                 stats = retval["stats"]
                 weight = retval["weight"]
@@ -823,10 +825,12 @@ class Trainer:
             reporter.register(stats, weight)
             reporter.next()
 
-        else:
-            if distributed:
-                iterator_stop.fill_(1)
-                torch.distributed.all_reduce(iterator_stop, ReduceOp.SUM)
+            logging.info(reporter.log_message(-1))
+
+        # else:
+        #     if distributed:
+        #         iterator_stop.fill_(1)
+        #         torch.distributed.all_reduce(iterator_stop, ReduceOp.SUM)
 
     @classmethod
     @torch.no_grad()
